@@ -1,2 +1,9 @@
 inherit_gem:
   caliber: config/all.yml
+
+Metrics/ParameterLists:
+  Exclude:
+    - lib/metapath/model.rb
+Style/RedundantFetchBlock:
+  Exclude:
+    - spec/lib/metapath/model_spec.rb
