@@ -13,4 +13,10 @@ RSpec.describe Metapath do
       expect(described_class.loader.tag).to eq("metapath")
     end
   end
+
+  describe ".new" do
+    it "answers modeler instance" do
+      expect(described_class.new).to be_a(Metapath::Modeler)
+    end
+  end
 end

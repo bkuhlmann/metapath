@@ -19,4 +19,6 @@ module Metapath
       loader.tag == File.basename(__FILE__, ".rb")
     end
   end
+
+  def self.new = Modeler.new
 end
