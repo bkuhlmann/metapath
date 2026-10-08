@@ -2,11 +2,23 @@
 :toclevels: 5
 :figure-caption!:
 
+:data_link: link:https://alchemists.io/articles/ruby_data[Data]
+:dry_monads_link: link:https://dry-rb.org/gems/dry-monads[Dry Monads]
+:railway_pattern_link: link:https://alchemists.io/articles/railway_pattern[Railway Pattern]
+:rubysmith_link: link:https://alchemists.io/projects/rubysmith[Rubysmith]
+
 = Metapath
+
+Dynamically parses and enriches paths metadata so you can obtain information from directories and files with minimal effort. Having metadata for each directory and/or file -- no matter how nested your directory structure is -- allows you to perform additional processing on your file structure for analysis, transformation, import, and so much more.
 
 toc::[]
 
 == Features
+
+* Dynamically obtains metadata about a directory or a file.
+* Supports an optional, per directory, configuration.
+* Supports nested directory structures.
+* Answers an array of paths with associated metadata.
 
 == Requirements
 
@@ -45,6 +57,257 @@ require "metapath"
 ----
 
 == Usage
+
+Getting started is as quick as creating an instance and then pointing it at a directory structure:
+
+[source,ruby]
+----
+metapath = Metapath.new
+metapath.call Pathname.pwd
+
+Success(
+  [
+    #<data Metapath::Model:0x00002710
+      attributes = {},
+      errors = {},
+      label = "Crested Butte",
+      name = "crested_butte",
+      path = #<Pathname:/Users/demo/Scratch/photos/Crested_Butte.jpeg>,
+      position = 0,
+      tags = []
+    >,
+    #<data Metapath::Model:0x00002780
+      attributes = {},
+      errors = {},
+      label = "Flaming Gorge",
+      name = "flaming_gorge",
+      path = #<Pathname:/Users/demo/Scratch/photos/Flaming_Gorge.jpeg>,
+      position = 0,
+      tags = []
+    >,
+    #<data Metapath::Model:0x000027f0
+      attributes = {},
+      errors = {},
+      label = "Grand Canyon",
+      name = "grand_canyon",
+      path = #<Pathname:/Users/demo/Scratch/photos/Grand_Canyon.jpeg>,
+      position = 0,
+      tags = []
+    >
+  ]
+)
+----
+
+=== Roots
+
+When calling a metapath, you must always supply a root path for processing. In the earlier example, this was `Pathname.pwd` (current path):
+
+[source,ruby]
+----
+metapath.call Pathname.pwd
+----
+
+Strings, if supplied, will be automatically converted into pathnames and auto-expanding into absolute paths. Examples:
+
+[source,ruby]
+----
+metapath.call "~/photos"
+# Expands to: #<Pathname:/Users/<your user>/photos>
+
+metapath.call "photos"
+# Expands to: #<Pathname:<current working directory>/photos>
+
+metapath.call "/Users/demo/photos"
+# Identical: "#<Pathname:/Users/demo/photos>"
+----
+
+All directories and files will be processed within the root path supplied (no matter how deeply nested).
+
+=== Directories and Files
+
+Each directory and file can have it's own metadata using any of the following characters:
+
+* `0-9`: Any number is valid.
+* `a-z`: Any lowercase letter is valid. This includes Unicode.
+* `A-Z`: Any uppercase letter is valid. This includes Unicode.
+* `-` (hyphen): Translates to `" - "` when building the label. Example:
+** Before: `A-Demo`.
+** After: `A - Demo`.
+* `_` (underscore): Translates to `" "` when building the label. Example:
+** Before: `A_Demo`.
+** After: `A Demo`.
+* `+` (plus): Marks the start of tag or attribute information. See examples below for details.
+* `,` (comma): Specifies an array of tag or attribute metdata. See examples below for details.
+* `=` (equals): Delimits the key and value of an attribute. For example `kind=demo`, where `kind` is the key and `demo` is the value.
+* `%` (percent): Reserved for token replacement as commonly found in {rubysmith_link} for processing of templates where you want to dynamically replace each placeholder (example: `%demo%`) with a dynamic value that matches the `demo` key (in this example). Currently meant for post-processing.
+* `.` (dot): Reserved for file extensions or multiple formats. Example: `demo.html`, `demo.html.erb`, etc.
+* `~` (tilde): Reserved but currently not used.
+* `@` (at): Reserved but currently not used.
+* `^` (carrot): Reserved but currently not used.
+
+All of the characters shown above allow you to have files and directories that don't require special quoting which works well across multiple operating systems.
+
+==== Positions
+
+Prefix your directories or files with a number immediately followed by a dash to keep them organized but also for sequential processing order.
+
+* *Format*: `<position>-<name>`
+* *Example* `01-demo`
+
+The position is always `0` when none is given.
+
+==== Tags
+
+Use tags to provide additional metadata about your directories and files (use a comma to separate multiple values).
+
+* *Format* (single): `<name>+<tag>`
+* *Example* (single): `demo+blue`
+* *Format* (multiple): `<name>+<tag>,<tag>,<tag>`
+* *Example* (multiple): `demo+blue,red,green`
+
+💡 Use a directory configuration (`meta.yml`) to extract common metadata if your metadata gets too long and unwieldy.
+
+==== Attributes
+
+Use attributes to provide additional metadata about your directories and files (use a comma to separate multiple values).
+
+* *Format* (single): `<name>+<key>=<value>`
+* *Example* (single): `demo+album=panoramas`
+* *Format* (multiple): `<name>+<key>=<value>,<key>=<value>,<key>=<value>`
+* *Example* (multiple): `demo+album=panoramas,kind=landscapes,location=snow_peak`
+
+💡 Use a directory configuration (`meta.yml`) to extract common metadata if your metadata gets too long and unwieldy.
+
+=== Configurations
+
+You can configure common metadata per directory by placing a `meta.yml` in the root of any directory. The following is an example of what this file might contain:
+
+[source,yaml]
+----
+tags:
+  - demo
+  - photos
+attributes:
+  album: panoramas
+  kind: landscapes
+----
+
+With the above, you can supply as many tags and attributes as necessary which will then be inherited as common metadata when processing files within the directory. This includes inheriting  configurations from parent directories. Keep in mind that any file with it's own metdata will take precedence.
+
+Only the `tag` and `attributes` keys are honored, all other top level keys are ignored.
+
+=== Priority
+
+Metadata is resolved by merging each of the following in order listed (lowest to highest):
+
+3. Directory
+2. `meta.yml`
+1. File
+
+Resolution of the above happens by merging metadata from the lowest level into the next level until all levels are merged as one. This means you can set defaults at the lowest level which will be inherited, or overwritten, at the highest level. In pseudo code, it looks like this:
+
+[source,ruby]
+----
+directory.deep_merge(meta).deep_merge file
+----
+
+=== Monads
+
+Every time you call your metapath instance, you'll get either a `Success` or `Failure` as provided by {dry_monads_link}. This allows you to use the {railway_pattern_link} pattern to build fault tolerant functional pipelines for robust error processing.
+
+When results are a success, you'll get an array of models. Example:
+
+[source,ruby]
+----
+Success(
+  [
+    #<data Metapath::Model:0x00002710
+      attributes = {},
+      label = "Crested Butte",
+      name = "crested_butte",
+      path = #<Pathname:/Users/demo/Scratch/photos/Crested_Butte.jpeg>,
+      position = 0,
+      tags = []
+    >
+  ]
+)
+----
+
+You can get a success when errors are detected with metadata associated with your directories or files. For example, let's say your `meta.yml` has the following content:
+
+[source,]
+----
+attributes:
+----
+
+[source,ruby]
+----
+Success(
+  [
+    #<data Metapath::Model:0x00002710
+      attributes = {},
+      errors = {attributes: ["must be filled"]},
+      label = "Crested Butte",
+      name = "crested_butte",
+      path = #<Pathname:/Users/demo/Scratch/photos/Crested_Butte.jpeg>,
+      position = 0,
+      tags = []
+    >
+  ]
+)
+----
+
+If a failure does occur, this usually means errors with your configuration. For example, let's say your `meta.yml` has the following content:
+
+[source,yaml]
+----
+Danger!
+----
+
+This means you'll get the following result:
+
+[source,ruby]
+----
+Failure "Invalid content: Danger."
+----
+
+=== Models
+
+Each model is a {data_link} object. Additionally, the following methods are also provided for you:
+
+[source,ruby]
+----
+model = Metapath::Model[
+  name: "demo",
+  label: "Demo",
+  tags: %w[demo photos],
+  attributes: {
+    "album" => "panoramas",
+    "kind" => "landscapes"
+  }
+]
+
+model.fetch "album"                  # "panoramas"
+model.fetch "bogus", "fallback"      # "fallback"
+model.fetch("bogus") { "fallback" }  # "fallback"
+model.fetch "bogus"                  # KeyError
+
+model.key? "album"                   # true
+model.key? "bogus"                   # false
+
+model.tag? "photos"                  # true
+model.tag? "bogus"                   # false
+
+other = Metapath::Model[name: "other", path: Pathname("_demo.html")]
+
+other.partial?                       # true
+model.partial?                       # false
+
+other = Metapath::Model[name: "other", path: Pathname("demo.html"), errors: {message: "Danger!"}]
+
+other.errors?                       # true
+model.errors?                       # false
+----
 
 == Development
 
