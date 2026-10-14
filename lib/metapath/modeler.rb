@@ -13,7 +13,7 @@ module Metapath
       @model = model
     end
 
-    def call(root, **) = enricher.call(root, **).fmap { build_models it }
+    def call(root) = enricher.call(root).fmap { build_models it }
 
     private
 
