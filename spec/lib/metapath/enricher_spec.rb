@@ -25,7 +25,7 @@ RSpec.describe Metapath::Enricher do
     end
 
     it "answers array of records with directory metadata" do
-      root = temp_dir.join("Test+root,kind=test").make_dir
+      root = temp_dir.join("Test+root,kind=test").mkpath
       path = root.join("Test.txt").touch
 
       expect(enricher.call(root)).to be_success(
@@ -42,7 +42,7 @@ RSpec.describe Metapath::Enricher do
     end
 
     it "answers array of records with nested directory metadata" do
-      path = temp_dir.join("a/Test+one,a=1").make_ancestors.make_dir.join("Test.txt").touch
+      path = temp_dir.join("a/Test+one,a=1").make_ancestors.mkpath.join("Test.txt").touch
 
       expect(enricher.call(temp_dir)).to be_success(
         [
@@ -98,7 +98,7 @@ RSpec.describe Metapath::Enricher do
     end
 
     it "answers array of records with merged configuration, directory, and file metadata" do
-      root = temp_dir.join("Test+root,root=true,a=0").make_dir
+      root = temp_dir.join("Test+root,root=true,a=0").mkpath
 
       root.join("meta.yml").write <<~CONTENT
         tags:
@@ -126,7 +126,7 @@ RSpec.describe Metapath::Enricher do
     it "answers array of records with nested file structure" do
       skip "An extra config_b shows in the one (last) item" if ENV["CI"] == "true"
 
-      root = temp_dir.join("Test+root,root=true,index=0").make_dir
+      root = temp_dir.join("Test+root,root=true,index=0").mkpath
 
       root.join("meta.yml").write <<~CONTENT
         tags:
